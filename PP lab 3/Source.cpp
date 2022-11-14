@@ -14,11 +14,22 @@ using namespace std;
 Файл результатов общий, каждый результат записывается отдельно
 (каждое обращение к файлу записывает один результат).
 */
-
+//Объявление функций
 void* InputAndSolution(void* args);
 void* Output(void* args);
 bool isPrime(long long n);
 
+//Объявление глобальных переменных
+std::mutex inputMutex;
+int inputRowCount;
+int maxRowCount;
+FILE* inputF;
+
+std::mutex outputMutex;
+int outputRowCount;
+FILE* outputF;
+
+//Функции
 FILE* OpenFileR()
 {
     FILE* f = fopen("input.txt", "r");
@@ -58,15 +69,7 @@ struct Solution
 class Node
 {
 public:
-    static std::mutex inputMutex;
-    static int inputRowCount;
-    static int maxRowCount;
-    static FILE* inputF;
-
-    static std::mutex outputMutex;
-    static int outputRowCount;
-    static FILE* outputF;
-
+    
     bool isFinished;
     std::mutex isFinishedMutex;
 
@@ -123,19 +126,19 @@ void* InputAndSolution(void* args)
     Node* node = (Node*)args;
     do
     {
-        node->inputMutex.lock();
-        if (node->inputRowCount >= node->maxRowCount)
+        inputMutex.lock();
+        if (inputRowCount >= maxRowCount)
         {
-            node->inputMutex.unlock();
+            inputMutex.unlock();
             node->isFinishedMutex.lock();
             node->isFinished = true;
             node->isFinishedMutex.unlock();
             pthread_exit(0);
         }
-        int row = node->inputRowCount;
-        int num = ReadFile(node->inputF, row);
-        node->inputRowCount++;
-        node->inputMutex.unlock();
+        int row = inputRowCount;
+        int num = ReadFile(inputF, row);
+        inputRowCount++;
+        inputMutex.unlock();
         Solution solution = { row, num, isPrime(num) };
         node->queueMutex.lock();
         node->solutions.push(solution);
@@ -162,10 +165,10 @@ void* Output(void* args)
             Solution solution = node->solutions.front();
             node->solutions.pop();
             node->queueMutex.unlock();
-            node->outputMutex.lock();
-            WriteFile(node->outputF, node->outputRowCount, solution); //Или WriteFile(outputF, solution);
-            node->outputRowCount++;
-            node->outputMutex.unlock();
+            outputMutex.lock();
+            WriteFile(outputF, outputRowCount, solution); //Или WriteFile(outputF, solution);
+            outputRowCount++;
+            outputMutex.unlock();
         }
     } while (true);
 }
@@ -183,12 +186,12 @@ int PrimeNumberSolver(int nodesCount = 1)
     if (nodesCount < 1)
         throw new exception("Кол-во узлов меньше 1");
 
-    Node::inputF = OpenFileR();
-    Node::outputF = OpenFileW();
+    inputF = OpenFileR();
+    outputF = OpenFileW();
 
-    Node::inputRowCount = 0;
-    Node::maxRowCount = GetNumberOfLines(Node::inputF);
-    Node::outputRowCount = 0;
+    inputRowCount = 0;
+    maxRowCount = GetNumberOfLines(inputF);
+    outputRowCount = 0;
 
     //list<Node> nodes;
 
