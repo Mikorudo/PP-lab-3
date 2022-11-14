@@ -1,12 +1,16 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define DelaysFlag 1
+#define readThreadDelay 60
+#define writeThreadDelay 10
+#include <Windows.h>
 #include <iostream>
 #include <string>
 #include "pthread.h"
 #include "sched.h"
+#include <chrono>
 #include "semaphore.h"
 #include <mutex>
 #include <queue>
-#include <list>
 #pragma comment(lib, "pthreadVCE2.lib")
 using namespace std;
 
@@ -16,9 +20,9 @@ using namespace std;
 (каждое обращение к файлу записывает один результат).
 */
 //Объявление функций
-void* InputAndSolution(void* args);
-void* Output(void* args);
-bool isPrime(long long n);
+void* ReadAndSolving(void* args);
+void* Write(void* args);
+bool isPrime(int n);
 
 //Объявление глобальных переменных
 std::mutex inputMutex;
@@ -87,8 +91,8 @@ public:
     {
         //InputAndSolution(this);
         //Output(this);
-        pthread_create(&inputAndSolutionThread, NULL, InputAndSolution, this);
-        pthread_create(&outputThread, NULL, Output, this);
+        pthread_create(&inputAndSolutionThread, NULL, ReadAndSolving, this);
+        pthread_create(&outputThread, NULL, Write, this);
     }
     void WaitSolving()
     {
@@ -110,7 +114,6 @@ static long long ReadFile(FILE* f, int row)
             try
             {
                 int num = (int)_atoi64(buffer);
-                //std::cout << num << " считан" << std::endl;
                 return num;
             }
             catch (std::invalid_argument e)
@@ -123,26 +126,21 @@ static long long ReadFile(FILE* f, int row)
     }
     rewind(f);
 }
-//Нужно ли передавать row?
-//Если да, решения будут записывать не по порядку
-//Если нет, берём row из solution и записываем по порядку
 static void WriteFile(FILE* f, Solution solution)
 {
     std::string str;
-    str += std::to_string(solution.lineNumber);
+    str += std::to_string(solution.lineNumber + 1);
     str += ". ";
     str += std::to_string(solution.number);
     str += " - ";
     if (solution.isPrime)
-        str += "простое число";
+        str += "простое число\n";
     else
-        str += "не простое число";
-    char line[1024];
-    strcpy(line, str.c_str());
-    fwrite(line, sizeof(char), 1024, f);
+        str += "не простое число\n";
+    fwrite(str.c_str(), sizeof(char), str.size(), f);
 }
 
-void* InputAndSolution(void* args)
+void* ReadAndSolving(void* args)
 {
     Node* node = (Node*)args;
     do
@@ -161,12 +159,15 @@ void* InputAndSolution(void* args)
         inputRowCount++;
         inputMutex.unlock();
         Solution solution = { row, num, isPrime(num) };
+#if DelaysFlag Задержка
+        Sleep(readThreadDelay);
+#endif 
         node->queueMutex.lock();
         node->solutions.push(solution);
         node->queueMutex.unlock();
     } while (true);
 }
-void* Output(void* args)
+void* Write(void* args)
 {
     Node* node = (Node*)args;
     do
@@ -187,14 +188,16 @@ void* Output(void* args)
             node->solutions.pop();
             node->queueMutex.unlock();
             outputMutex.lock();
-            //std::cout << solution.lineNumber << ". " << solution.number << " - " << (solution.isPrime ? "простое" : "не простое") << std::endl;
             WriteFile(outputF, solution);
+#if DelaysFlag Задержка
+            Sleep(writeThreadDelay);
+#endif 
             outputMutex.unlock();
         }
     } while (true);
 }
 
-bool isPrime(long long n)
+bool isPrime(int n)
 {
     for (long long i = 2; i <= sqrt(n); i++)
         if (n % i == 0)
@@ -213,25 +216,32 @@ int PrimeNumberSolver(int nodesCount = 1)
     inputRowCount = 0;
     maxRowCount = GetNumberOfLines(inputF);
 
-    list<Node*> nodes;
+    Node **nodes = new Node*[nodesCount];
 
-    for (size_t i = 0; i < nodesCount; i++)
+    for (size_t i = 0; i < nodesCount; i++) //инициализация узлов
     {
-        Node* node = new Node;
-        nodes.push_back(node);
-        node->StartSolving();
+        Node *node = new Node;
+        nodes[i] = node;
     }
-    for (size_t i = 0; i < nodesCount; i++)
+    for (size_t i = 0; i < nodesCount; i++) //запуск потоков
+        nodes[i]->StartSolving();
+    auto start = std::chrono::high_resolution_clock::now(); //Запуск таймера
+    for (int i = 0; i < nodesCount; i++) //Ожидаем выполнения
     {
-        Node* node = nodes.front();
-        nodes.pop_front();
-        node->WaitSolving();
-        delete(node);
+        nodes[i]->WaitSolving();
     }
+    auto elapsed = std::chrono::high_resolution_clock::now() - start; //Стоп таймера
+    long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(); //Время выполнения
+    for (size_t i = 0; i < nodesCount; i++)
+        delete(nodes[i]);
+    delete[](nodes);
+
+    return milliseconds;
 }
 
 int main() {
 	setlocale(LC_ALL, "RU");
-    PrimeNumberSolver(1);
+    for (size_t i = 1; i <= 10; i++)
+        std::cout << "Потоков: " << i << ". Время: " << PrimeNumberSolver(i) << std::endl;
 	return 0;
 }
