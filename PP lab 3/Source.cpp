@@ -33,7 +33,7 @@ FILE* outputF;
 FILE* OpenFileR()
 {
     FILE* f = fopen("input.txt", "r");
-    if (f == 0)
+    if (f == NULL)
     {
         throw new exception("Ôאיכא input.txt םוע!");
     }
@@ -42,7 +42,7 @@ FILE* OpenFileR()
 FILE* OpenFileW()
 {
     FILE* f = fopen("output.txt", "w");
-    if (f == 0)
+    if (f == NULL)
     {
         throw new exception("Ôאיכא output.txt םוע!");
     }
