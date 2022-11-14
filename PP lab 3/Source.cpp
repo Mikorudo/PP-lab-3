@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
+#include <string>
 #include "pthread.h"
 #include "sched.h"
 #include "semaphore.h"
@@ -26,7 +27,6 @@ int maxRowCount;
 FILE* inputF;
 
 std::mutex outputMutex;
-int outputRowCount;
 FILE* outputF;
 
 //Функции
@@ -116,9 +116,20 @@ static long long ReadFile(FILE* f, int row)
 //Нужно ли передавать row?
 //Если да, решения будут записывать не по порядку
 //Если нет, берём row из solution и записываем по порядку
-static void WriteFile(FILE* f, int row, Solution solution)
+static void WriteFile(FILE* f, Solution solution)
 {
-
+    std::string str;
+    str += std::to_string(solution.lineNumber);
+    str += ". ";
+    str += std::to_string(solution.number);
+    str += " - ";
+    if (solution.isPrime)
+        str += "простое число";
+    else
+        str += "не простое число";
+    char line[1024];
+    strcpy(line, str.c_str());
+    fwrite(line, sizeof(char), 1024, f);
 }
 
 void* InputAndSolution(void* args)
@@ -166,8 +177,8 @@ void* Output(void* args)
             node->solutions.pop();
             node->queueMutex.unlock();
             outputMutex.lock();
-            WriteFile(outputF, outputRowCount, solution); //Или WriteFile(outputF, solution);
-            outputRowCount++;
+            std::cout << solution.lineNumber << ". " << solution.number << " - " << (solution.isPrime ? "простое" : "не простое") << std::endl;
+            WriteFile(outputF, solution);
             outputMutex.unlock();
         }
     } while (true);
@@ -191,7 +202,6 @@ int PrimeNumberSolver(int nodesCount = 1)
 
     inputRowCount = 0;
     maxRowCount = GetNumberOfLines(inputF);
-    outputRowCount = 0;
 
     //list<Node> nodes;
 
@@ -205,5 +215,6 @@ int PrimeNumberSolver(int nodesCount = 1)
 
 int main() {
 	setlocale(LC_ALL, "RU");
+    PrimeNumberSolver(2);
 	return 0;
 }
