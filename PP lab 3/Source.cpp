@@ -85,6 +85,8 @@ public:
     }
     void StartSolving()
     {
+        //InputAndSolution(this);
+        //Output(this);
         pthread_create(&inputAndSolutionThread, NULL, InputAndSolution, this);
         pthread_create(&inputAndSolutionThread, NULL, Output, this);
     }
@@ -144,7 +146,7 @@ void* InputAndSolution(void* args)
             node->isFinishedMutex.lock();
             node->isFinished = true;
             node->isFinishedMutex.unlock();
-            pthread_exit(0);
+            return NULL;
         }
         int row = inputRowCount;
         int num = ReadFile(inputF, row);
@@ -169,7 +171,7 @@ void* Output(void* args)
             node->isFinishedMutex.unlock();
             node->queueMutex.unlock();
             if (isFinished)
-                pthread_exit(0);
+                return NULL;
         }
         else
         {
