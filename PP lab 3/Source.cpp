@@ -19,6 +19,7 @@ using namespace std;
 ‘айл результатов общий, каждый результат записываетс€ отдельно
 (каждое обращение к файлу записывает один результат).
 */
+
 //ќбъ€вление функций
 void* ReadAndSolving(void* args);
 void* Write(void* args);
@@ -74,30 +75,30 @@ class Node
 {
 public:
     
-    bool isFinished;
-    std::mutex isFinishedMutex;
+    bool isReadFinished;
+    std::mutex isReadFinishedMutex;
 
     queue<Solution> solutions;
     std::mutex queueMutex;
 
-    pthread_t inputAndSolutionThread;
-    pthread_t outputThread;
+    pthread_t readAndSolveThread;
+    pthread_t writeThread;
 
     Node()
     {
-        isFinished = false;
+        isReadFinished = false;
     }
     void StartSolving()
     {
         //InputAndSolution(this);
         //Output(this);
-        pthread_create(&inputAndSolutionThread, NULL, ReadAndSolving, this);
-        pthread_create(&outputThread, NULL, Write, this);
+        pthread_create(&readAndSolveThread, NULL, ReadAndSolving, this);
+        pthread_create(&writeThread, NULL, Write, this);
     }
     void WaitSolving()
     {
-        pthread_join(inputAndSolutionThread, NULL);
-        pthread_join(outputThread, NULL);
+        pthread_join(readAndSolveThread, NULL);
+        pthread_join(writeThread, NULL);
     }
 };
 
@@ -148,9 +149,9 @@ void* ReadAndSolving(void* args)
         inputMutex.lock();
         if (inputRowCount >= maxRowCount)
         {
-            node->isFinishedMutex.lock();
-            node->isFinished = true;
-            node->isFinishedMutex.unlock();
+            node->isReadFinishedMutex.lock();
+            node->isReadFinished = true;
+            node->isReadFinishedMutex.unlock();
             inputMutex.unlock();
             return (void*)1;
         }
@@ -175,9 +176,9 @@ void* Write(void* args)
         node->queueMutex.lock();
         if (node->solutions.size() == 0)
         {
-            node->isFinishedMutex.lock();
-            bool isFinished = node->isFinished;
-            node->isFinishedMutex.unlock();
+            node->isReadFinishedMutex.lock();
+            bool isFinished = node->isReadFinished;
+            node->isReadFinishedMutex.unlock();
             node->queueMutex.unlock();
             if (isFinished)
                 return (void*)1;
