@@ -88,7 +88,12 @@ public:
         //InputAndSolution(this);
         //Output(this);
         pthread_create(&inputAndSolutionThread, NULL, InputAndSolution, this);
-        pthread_create(&inputAndSolutionThread, NULL, Output, this);
+        pthread_create(&outputThread, NULL, Output, this);
+    }
+    void WaitSolving()
+    {
+        pthread_join(inputAndSolutionThread, NULL);
+        pthread_join(outputThread, NULL);
     }
 };
 
@@ -104,7 +109,9 @@ static long long ReadFile(FILE* f, int row)
         {
             try
             {
-                return _atoi64(buffer);
+                int num = (int)_atoi64(buffer);
+                //std::cout << num << " считан" << std::endl;
+                return num;
             }
             catch (std::invalid_argument e)
             {
@@ -114,6 +121,7 @@ static long long ReadFile(FILE* f, int row)
         }
         i++;
     }
+    rewind(f);
 }
 //Нужно ли передавать row?
 //Если да, решения будут записывать не по порядку
@@ -142,11 +150,11 @@ void* InputAndSolution(void* args)
         inputMutex.lock();
         if (inputRowCount >= maxRowCount)
         {
-            inputMutex.unlock();
             node->isFinishedMutex.lock();
             node->isFinished = true;
             node->isFinishedMutex.unlock();
-            return NULL;
+            inputMutex.unlock();
+            return (void*)1;
         }
         int row = inputRowCount;
         int num = ReadFile(inputF, row);
@@ -164,14 +172,14 @@ void* Output(void* args)
     do
     {
         node->queueMutex.lock();
-        if (node->solutions.empty())
+        if (node->solutions.size() == 0)
         {
             node->isFinishedMutex.lock();
             bool isFinished = node->isFinished;
             node->isFinishedMutex.unlock();
             node->queueMutex.unlock();
             if (isFinished)
-                return NULL;
+                return (void*)1;
         }
         else
         {
@@ -179,7 +187,7 @@ void* Output(void* args)
             node->solutions.pop();
             node->queueMutex.unlock();
             outputMutex.lock();
-            std::cout << solution.lineNumber << ". " << solution.number << " - " << (solution.isPrime ? "простое" : "не простое") << std::endl;
+            //std::cout << solution.lineNumber << ". " << solution.number << " - " << (solution.isPrime ? "простое" : "не простое") << std::endl;
             WriteFile(outputF, solution);
             outputMutex.unlock();
         }
@@ -205,18 +213,25 @@ int PrimeNumberSolver(int nodesCount = 1)
     inputRowCount = 0;
     maxRowCount = GetNumberOfLines(inputF);
 
-    //list<Node> nodes;
+    list<Node*> nodes;
 
     for (size_t i = 0; i < nodesCount; i++)
     {
-        Node node;
-        //nodes.push_back(node);
-        node.StartSolving();
+        Node* node = new Node;
+        nodes.push_back(node);
+        node->StartSolving();
+    }
+    for (size_t i = 0; i < nodesCount; i++)
+    {
+        Node* node = nodes.front();
+        nodes.pop_front();
+        node->WaitSolving();
+        delete(node);
     }
 }
 
 int main() {
 	setlocale(LC_ALL, "RU");
-    PrimeNumberSolver(2);
+    PrimeNumberSolver(1);
 	return 0;
 }
